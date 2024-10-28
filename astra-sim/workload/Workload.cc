@@ -94,21 +94,37 @@ void Workload::initialize_comm_group(string comm_group_filename) {
 }
 
 void Workload::issue_dep_free_nodes() {
-  std::queue<shared_ptr<Chakra::ETFeederNode>> push_back_queue;
-  shared_ptr<Chakra::ETFeederNode> node = et_feeder->getNextIssuableNode();
+  // Lambda to compare nodes based on priority, creating a min-heap
+  auto compare = [](const std::shared_ptr<Chakra::ETFeederNode>& lhs,
+                    const std::shared_ptr<Chakra::ETFeederNode>& rhs) {
+    return lhs->comm_priority() > rhs->comm_priority();
+  };
+
+  // Priority queue defined with the custom lambda comparator
+  std::priority_queue<
+      std::shared_ptr<Chakra::ETFeederNode>,
+      std::vector<std::shared_ptr<Chakra::ETFeederNode>>,
+      decltype(compare)>
+      nodeQueue(compare);
+
+  std::shared_ptr<Chakra::ETFeederNode> node = et_feeder->getNextIssuableNode();
+
+  // Populate the priority queue with nodes
   while (node != nullptr) {
-    if (hw_resource->is_available(node)) {
-      issue(node);
-    } else {
-      push_back_queue.push(node);
-    }
+    nodeQueue.push(node);
     node = et_feeder->getNextIssuableNode();
   }
 
-  while (!push_back_queue.empty()) {
-    shared_ptr<Chakra::ETFeederNode> node = push_back_queue.front();
-    et_feeder->pushBackIssuableNode(node->id());
-    push_back_queue.pop();
+  // Process the priority queue to issue nodes
+  // based on priority and resource availability
+  while (!nodeQueue.empty()) {
+    std::shared_ptr<Chakra::ETFeederNode> topNode = nodeQueue.top();
+    nodeQueue.pop();
+    if (hw_resource->is_available(topNode)) {
+      issue(topNode);
+    } else {
+      et_feeder->pushBackIssuableNode(topNode->id());
+    }
   }
 }
 
