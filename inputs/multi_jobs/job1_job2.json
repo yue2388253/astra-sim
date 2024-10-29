@@ -1,0 +1,12 @@
+{
+  "jobs": [
+    {
+      "workload_configuration": "inputs/workload/ASTRA-sim-1.0/lam_DataParallel/rank",
+      "gpus": [0, 1, 4, 5]
+    },
+    {
+      "workload_configuration": "inputs/workload/ASTRA-sim-1.0/lam_DataParallel/rank",
+      "gpus": [2, 3, 6, 7]
+    }
+  ]
+}

@@ -42,7 +42,8 @@ CollectivePlan* CommunicatorGroup::get_collective_plan(ComType comm_type) {
   if (comm_plans.find(comm_type) != comm_plans.end())
     return comm_plans[comm_type];
 
-  if (static_cast<uint64_t>(generator->total_nodes) == involved_NPUs.size()) {
+//  if (static_cast<uint64_t>(generator->total_nodes) == involved_NPUs.size()) {
+  if (false) {
     LogicalTopology* logical_topology =
         generator->get_logical_topology(comm_type);
     std::vector<CollectiveImpl*> collective_implementation =

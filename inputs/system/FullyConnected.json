@@ -9,5 +9,6 @@
   "all-to-all-implementation": ["direct"],
   "collective-optimization": "localBWAware",
   "local-mem-bw": 50,
-  "boost-mode": 0
+  "boost-mode": 0,
+  "trace-enabled": 1
 }

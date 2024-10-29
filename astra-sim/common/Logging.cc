@@ -15,8 +15,8 @@ std::shared_ptr<spdlog::logger> LoggerFactory::get_logger(
   // Create new logger.
   if (logger_name == "trace") {
     // Create a dedicated file sink for 'trace' that truncates the file on open
-    logger = spdlog::create_async<spdlog::sinks::rotating_file_sink_mt>(
-        logger_name, "log/trace.log", 1024 * 1024 * 10, 10, true);
+    logger = spdlog::create_async<spdlog::sinks::basic_file_sink_mt>(
+        logger_name, "log/trace.log", true);
     logger->sinks().back()->set_pattern("%v");
     logger->set_level(spdlog::level::trace);
     logger->flush_on(spdlog::level::debug);

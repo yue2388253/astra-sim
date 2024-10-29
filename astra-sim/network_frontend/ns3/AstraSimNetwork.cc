@@ -141,7 +141,7 @@ class ASTRASimNetwork : public AstraSim::AstraNetworkAPI {
 };
 
 // Command line arguments and default values.
-string workload_configuration;
+string multi_jobs_configuration;
 string system_configuration;
 string network_configuration;
 string memory_configuration;
@@ -154,7 +154,9 @@ double injection_scale = 1;
 bool rendezvous_protocol = false;
 auto logical_dims = vector<int>();
 int num_npus = 1;
+auto npus_id = vector<int>();
 auto queues_per_dim = vector<int>();
+auto jobs_workload_file = map<int, string>();
 
 // TODO: Migrate to yaml
 void read_logical_topo_config(
@@ -185,16 +187,63 @@ void read_logical_topo_config(
   }
   cout << "There are " << num_npus << " npus: " << dimstr.str() << "\n";
 
+  if (j.contains("npus_id")) {
+    vector<int> tmp = j["npus_id"];
+    npus_id = tmp;
+  } else {
+    for (int npu_id = 0; npu_id < num_npus; npu_id++) {
+      npus_id.push_back(npu_id);
+    }
+  }
+
+  if (npus_id.size() != num_npus) {
+    std::cerr << "Error: fail to init npu." << std::endl;
+    exit(1);
+  }
+
   queues_per_dim = vector<int>(logical_dims.size(), num_queues_per_dim);
+}
+
+void read_multi_jobs_config() {
+  ifstream inFile;
+  inFile.open(multi_jobs_configuration);
+  if (!inFile) {
+    cerr << "Unable to open file: " << multi_jobs_configuration << endl;
+    exit(1);
+  }
+
+  json j;
+  inFile >> j;
+
+  // Accessing the "jobs" array
+  for (const auto& job : j["jobs"]) {
+    // Accessing individual fields
+    std::string workload_file_prefix = job["workload_configuration"];
+    std::vector<int> gpus_used = job["gpus"].get<std::vector<int>>();
+
+    // Output the values
+    std::cout << "Workload configuration: " << workload_file_prefix
+              << std::endl;
+    std::cout << "GPUs: ";
+    for (int gpu : gpus_used) {
+      std::cout << gpu << " ";
+    }
+    std::cout << std::endl;
+
+    for (int i : gpus_used) {
+      assert(jobs_workload_file.find(i) == jobs_workload_file.end());
+      jobs_workload_file[i] = workload_file_prefix;
+    }
+  }
 }
 
 // Read command line arguments.
 void parse_args(int argc, char* argv[]) {
   CommandLine cmd;
   cmd.AddValue(
-      "workload-configuration",
-      "Workload configuration file.",
-      workload_configuration);
+      "multi-jobs-configuration",
+      "Multi-jobs workload configuration file.",
+      multi_jobs_configuration);
   cmd.AddValue(
       "system-configuration",
       "System configuration file",
@@ -231,6 +280,7 @@ void parse_args(int argc, char* argv[]) {
       "Whether to enable rendezvous protocol",
       rendezvous_protocol);
 
+
   cmd.Parse(argc, argv);
 }
 
@@ -244,23 +294,23 @@ int main(int argc, char* argv[]) {
 
   // Read network config and find logical dims.
   parse_args(argc, argv);
+  read_multi_jobs_config();
   read_logical_topo_config(logical_topology_configuration, logical_dims);
 
   // Setup network & System layer.
-  vector<ASTRASimNetwork*> networks(num_npus, nullptr);
   vector<AstraSim::Sys*> systems(num_npus, nullptr);
   Analytical::AnalyticalRemoteMemory* mem =
       new Analytical::AnalyticalRemoteMemory(memory_configuration);
 
-  for (int npu_id = 0; npu_id < num_npus; npu_id++) {
-    networks[npu_id] = new ASTRASimNetwork(npu_id);
-    systems[npu_id] = new AstraSim::Sys(
+  for (int i = 0; i < num_npus; i++) {
+    auto npu_id = npus_id[i];
+    systems[i] = new AstraSim::Sys(
         npu_id,
-        workload_configuration,
+        jobs_workload_file.at(npu_id),
         comm_group_configuration,
         system_configuration,
         mem,
-        networks[npu_id],
+        new ASTRASimNetwork(npu_id),
         logical_dims,
         queues_per_dim,
         injection_scale,
@@ -280,8 +330,8 @@ int main(int argc, char* argv[]) {
   }
 
   // Run the simulation by triggering the ns3 event queue.
-  Simulator::Run();
   Simulator::Stop(Seconds(2000000000));
+  Simulator::Run();
   Simulator::Destroy();
 
   // terminate simulation
